@@ -1,0 +1,48 @@
+require 'Fish'
+
+FishManger = {}
+local this = FishManger;
+
+local FishGroup = {}
+
+local KeyTable = {}
+local CountKey = 0
+
+function FishManger.AddFishGroup(kind, num)
+    newKey = this.GetNewKey();
+    newfish = Fish:new(newKey, kind, num);
+    print("Add A Group " .. "id:" .. newfish.ID .. ",Kind:" .. newfish.Kind .. ",num:" .. newfish.Num);
+
+    table.insert(FishGroup, newfish)
+    return newfish.ID;
+end
+
+function FishManger.RemoveFishGroup(key)
+    this.ReleaseKey(key);
+    table.remove(FishGroup,group);
+end
+
+function FishManger.GetNewKey()
+    for key, value in pairs(KeyTable) do
+        if value == false then
+           return key;
+        end
+    end
+    --没有已经空Key位置了。则扩张
+    table.insert(KeyTable,true);
+    --列表不会出现Nil,只会在失去值的时候设置为false,为1开头的连贯数组，可以使用长度计算
+    return #KeyTable;
+end
+
+function FishManger.ReleaseKey(key)
+    KeyTable[key] = false;  --就算出错了，本身为nil，新增赋值为false逻辑上也没影响
+end
+
+function FishManger.UpdateFishes()
+    for key, value in pairs(FishGroup) do
+        value:UpdatePos();
+    end
+end
+
+
+return FishManger

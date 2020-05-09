@@ -1,0 +1,238 @@
+local util = require 'xlua.util';
+
+Snake = {
+    Speed = 2;
+    Length = 0;
+    Direct = 'Right';
+    DirectBuffer = 'Right';
+    Nodes = nil;
+    IsDead = false;
+    nowUpdateCount = 0;
+}
+
+--位置
+local mParent = nil;
+
+local MaxWidth = 96;
+local MaxHeight = 54;
+
+local xSize = 20;
+local ySize = 20;
+
+local StartPosX = -950;
+local StartPosY = -530;
+
+local TriggerUpdateCount = 100;
+
+--食物生产
+local Food = nil
+
+function Snake:new(pSpeed, pLength, parent)
+    local o = {};
+    setmetatable(o, self);
+    self.__index = self;    
+
+    o.Nodes = {};
+
+    Food = {};
+    
+    mParent = parent;
+    o.Speed = pSpeed;
+    
+
+    o:AddNode("Head", mParent, 1);
+    for i = 2, pLength do
+        o:AddNode("Node", mParent, i);
+    end
+
+    return o;
+end
+
+function Snake:SetDirect(pDirect)
+    if self.IsDead then
+        return ;
+    end
+    self.DirectBuffer = pDirect;
+end
+
+function Snake:GetDirect()
+    return self.Direct;
+end
+
+function Snake.GetRealPos(Pos)
+    return CS.UnityEngine.Vector3(
+        StartPosX + Pos.x * xSize,
+        StartPosY + Pos.y * xSize,
+        0);
+end
+
+function Snake:AddFood()
+    t = { x = math.random(0 , MaxWidth - 1), y = math.random(0 , MaxHeight - 1) } 
+    --检查是否在已经有食物的位置产生
+    for i = 1, #Food do
+        if Food[i].Pos.x == t.x and Food[i].Pos.y == t.y then
+            Snake.AddFood();
+            return ;
+        end
+    end
+    --检查是否在蛇身体上产生
+    for i = 1, #self.Nodes do
+        if self.Nodes[i].Pos.x == t.x and self.Nodes[i].Pos.y == t.y then
+            Snake.AddFood();
+            return ;
+        end
+    end
+
+    local isRed = math.random(1,1000) % 3 == 1;
+ 
+    print("ResourceManger:",CS.ResourceManger);
+    CS.ResourceManger.LoadGameObject("Assets.Resources.Food.prefab",  function (go)
+        go.transform.parent = mParent;
+        go.transform.localScale = CS.UnityEngine.Vector3(1,1,1);
+        go.transform.localPosition = Snake.GetRealPos(t);
+        table.insert(Food, { GO = go, Pos = t });
+    end);
+end
+
+function Snake:UpdatePos()
+    if self.IsDead then
+        return ;
+    end
+
+    if self.nowUpdateCount == 0 then    
+        for i = #self.Nodes, 2, -1 do
+            self.Nodes[i].Pos.x = self.Nodes[i - 1].Pos.x;
+            self.Nodes[i].Pos.y = self.Nodes[i - 1].Pos.y;
+        end
+        --实际运动时才确定实际方向，避免按键时多个改变当前方向而躲开当前方向的检测而乱转向
+        self.Direct = self.DirectBuffer; 
+        
+        if self.Direct == 'Left' then
+            self.Nodes[1].Pos.x = self.Nodes[1].Pos.x - 1;
+        elseif self.Direct == 'Right' then
+            self.Nodes[1].Pos.x = self.Nodes[1].Pos.x + 1;
+        elseif self.Direct == 'Up' then
+            self.Nodes[1].Pos.y = self.Nodes[1].Pos.y + 1;
+        elseif self.Direct == 'Down' then
+            self.Nodes[1].Pos.y = self.Nodes[1].Pos.y - 1;
+        end  
+        
+        self:UpdateRealPos();
+        self:CheckPos();
+    end
+
+    self.nowUpdateCount = self.nowUpdateCount + self.Speed;
+    if self.nowUpdateCount > TriggerUpdateCount then
+        self.nowUpdateCount = 0;
+    end    
+end
+
+function Snake:UpdateRealPos()
+    for i = 1, self.Length do     
+        if self.Nodes[i].GO == nil then
+            return ;
+        end   
+        self.Nodes[i].GO.transform.localPosition = Snake.GetRealPos(self.Nodes[i].Pos);
+    end
+end
+
+function Snake:CheckPos()    
+    if self.Nodes[1].Pos.x < 0 or self.Nodes[1].Pos.x >= MaxWidth then
+        self:Dead();
+        return ;
+    end
+
+    if self.Nodes[1].Pos.y < 0 or self.Nodes[1].Pos.y >= MaxHeight then
+        self:Dead();
+        return ;
+    end
+
+    for i = 2, #self.Nodes do
+        if self.Nodes[1].Pos.x == self.Nodes[i].Pos.x and self.Nodes[1].Pos.y == self.Nodes[i].Pos.y then          
+            print(self.Nodes[1].Pos.x,self.Nodes[1].Pos.y,self.Nodes[i].Pos.x,self.Nodes[i].Pos.y);          
+            self:Dead();
+            return ;
+        end
+    end
+
+    for i = 1, #Food do
+        if self.Nodes[1].Pos.x == Food[i].Pos.x and self.Nodes[1].Pos.y == Food[i].Pos.y then  
+            CS.UnityEngine.GameObject.Destroy(Food[i].GO);
+            table.remove(Food,i);    
+            self:Eat();
+            return ;
+        end
+    end
+end
+
+function Snake:Eat()
+    print("Eat!");
+    self.Speed = self.Speed + 0.5;
+
+    self:AddNode("Node", mParent, self.Length);
+    self:AddFood();
+end
+
+
+function Snake:Dead()
+    print("Dead!");
+    --删除蛇身对象
+    for i = 1, #self.Nodes do
+        CS.UnityEngine.GameObject.Destroy(self.Nodes[i].GO); 
+        self.Nodes[i].GO = nil;
+        self.Nodes[i].Pos = nil;
+    end
+    self.Nodes = nil;
+
+    --删除食物
+    for i = 1, #Food do
+        CS.UnityEngine.GameObject.Destroy(Food[i].GO); 
+    end
+    Food = nil;
+    --创建重新失败面板
+    self.IsDead = true;
+
+    local Joystick = CS.UnityEngine.GameObject.Find("Joystick");
+    Joystick.transform.localScale = CS.UnityEngine.Vector3(0,0,0);
+
+    CS.ResourceManger.LoadGameObject("Assets.Resources.DeadPanel.prefab",  function (go)
+        go.transform.parent = mParent;
+        go.transform.localScale = CS.UnityEngine.Vector3(1,1,1);
+        go.transform.localPosition = CS.UnityEngine.Vector3(0,0,0);
+        --关联重新开始
+        local DeadPanel = go:GetComponent("DeadPanel");
+        DeadPanel.btnRestart.onClick:AddListener(function()        
+            _G.GameManger.InitSnake();
+            CS.UnityEngine.GameObject.Destroy(DeadPanel.gameObject); 
+        end)    
+    end);
+  
+    --蛇对象清空
+    _G.GameManger.Clear();
+end
+
+function Snake:AddNode(NodeType, parent)
+    local path = "Assets.Resources.Node.prefab";
+    if NodeType == "Head" then
+        path = "Assets.Resources.Head.prefab";
+    end
+    
+    local pos = nil;
+    if NodeType == "Head" then
+        pos = { x = MaxWidth/2, y = MaxHeight/2 }
+    else 
+        pos = { x = -1 , y = -1 }
+    end
+    local node = { GO = nil, Pos = pos }    
+    table.insert(self.Nodes, node);     
+
+    CS.ResourceManger.LoadGameObject(path, function (go)
+        go.transform.parent = parent;
+        go.transform.localScale = CS.UnityEngine.Vector3(1,1,1);
+        go.transform.localPosition = CS.UnityEngine.Vector3(-2000,-2000,0);
+        node.GO = go;
+        self.Length = self.Length + 1;
+    end);
+end
+
+return Snake;

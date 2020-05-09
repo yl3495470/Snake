@@ -1,0 +1,28 @@
+Fish = {
+    ID = -1,
+    Kind = "",
+    Num = 0,
+}
+
+function Fish:new(id, kind, num)
+    local o = {}
+    setmetatable(o,self);
+    
+    self.__index = self;
+
+    o.ID = id;
+    o.Kind = kind;
+    o.Num = num;
+
+    self.__tostring = function()
+        return "ID:" .. o.ID .. ",Kind:" .. o.Kind .. ",Num:" .. o.Num;
+    end
+    
+    return o;
+end
+
+function Fish:UpdatePos()
+    print(self)
+end
+
+return Fish

@@ -1,0 +1,77 @@
+local util = require 'xlua.util';
+require 'Snake';
+--local fishManger = require 'FishManger'
+
+GameManger = {}
+_G.GameManger = GameManger;
+
+local playerSnake;
+local BtnStart;
+
+function awake()    
+    print("GameManger Awake");
+    local Button = CS.UnityEngine.GameObject.Find("Button");
+    BtnStart = Button:GetComponent("Button");
+	BtnStart.onClick:AddListener(function()
+        GameManger.InitSnake();
+        Button:SetActive(false);
+	end)
+
+    print("GameManger Start");
+end
+
+function GameManger.InitSnake()
+    local Joystick = CS.UnityEngine.GameObject.Find("Joystick");
+    Joystick.transform.localScale = CS.UnityEngine.Vector3(2,2,2);
+
+    playerSnake = Snake:new(8,5,UiRoot);
+    playerSnake:AddFood();
+end
+
+function update()
+    if playerSnake ~= nil then
+        if playerSnake.IsDead then          
+            return ;
+        end
+        playerSnake:UpdatePos();
+    end    
+end
+
+function GameManger.Clear()
+    playerSnake = nil;
+end
+
+function ondestroy()
+    print("GameManger OnDestroy");
+end
+
+function TurnUp()
+    if playerSnake == nil or playerSnake:GetDirect() == "Down" then
+        return ;
+    end
+    playerSnake:SetDirect("Up");
+end
+
+function TurnDown()
+    if playerSnake == nil or playerSnake:GetDirect() == "Up" then
+        return ;
+    end
+    playerSnake:SetDirect("Down");
+end
+
+function TurnLeft()
+    if playerSnake == nil or playerSnake:GetDirect() == "Right" then
+        print("Pass Oppo")
+        return ;
+    end
+    playerSnake:SetDirect("Left");
+end
+
+function TurnRight()
+    if playerSnake == nil or playerSnake:GetDirect() == "Left" then
+        return ;
+    end
+    playerSnake:SetDirect("Right");
+end
+
+return GameManger;
